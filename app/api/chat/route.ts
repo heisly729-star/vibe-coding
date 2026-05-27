@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
 /* ===== 시스템 프롬프트: 김이현 AI 어시스턴트 ===== */
-const SYSTEM_PROMPT = `LANGUAGE RULE (highest priority):
-- Detect the language of the user's message.
-- If the user writes in English → reply in English.
-- If the user writes in Korean → reply in Korean.
-- Never switch languages on your own. Always match the user's language exactly.
-
-당신은 김이현의 포트폴리오 AI 어시스턴트입니다.
+const SYSTEM_PROMPT = `당신은 김이현의 포트폴리오 AI 어시스턴트입니다.
 
 [기본 정보]
 - 이름: 김이현
@@ -47,7 +41,20 @@ const SYSTEM_PROMPT = `LANGUAGE RULE (highest priority):
 - 3~4문장 이내로 간결하게
 - 친근하고 전문적인 톤
 - 모르는 정보는 솔직하게 인정
-- Match the user's language (see LANGUAGE RULE at the top)`;
+- 3~4문장 이내로 간결하게
+- 친근하고 전문적인 톤
+- 모르는 정보는 솔직하게 인정`;
+
+/* ===== 마지막 사용자 메시지 언어 감지 ===== */
+function detectLang(messages: Array<{ role: string; content: string }>): 'Korean' | 'English' {
+  // 가장 마지막 사용자 메시지 기준으로 판단
+  const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+  if (!lastUser) return 'Korean';
+  const text = lastUser.content;
+  const koreanCount = (text.match(/[가-힣]/g) ?? []).length;
+  const englishCount = (text.match(/[a-zA-Z]/g) ?? []).length;
+  return englishCount > koreanCount ? 'English' : 'Korean';
+}
 
 /* ===== BOM 문자 제거 유틸 ===== */
 function cleanApiKey(key: string | undefined): string | undefined {
@@ -72,10 +79,16 @@ export async function POST(request: NextRequest) {
 
     const client = new Anthropic({ apiKey });
 
+    // 마지막 메시지 언어 감지 → 시스템 프롬프트에 강제 주입
+    const lang = detectLang(messages);
+    const langInstruction = lang === 'English'
+      ? '\n\nYou MUST reply in English only. Do not use Korean at all.'
+      : '\n\n반드시 한국어로만 답변하세요.';
+
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 800,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + langInstruction,
       messages,
     });
 
