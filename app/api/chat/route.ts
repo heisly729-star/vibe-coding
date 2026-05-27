@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
 /* ===== 시스템 프롬프트: 김이현 AI 어시스턴트 ===== */
-const SYSTEM_PROMPT = `당신은 김이현의 포트폴리오 AI 어시스턴트입니다.
+const SYSTEM_PROMPT = `LANGUAGE RULE (highest priority):
+- Detect the language of the user's message.
+- If the user writes in English → reply in English.
+- If the user writes in Korean → reply in Korean.
+- Never switch languages on your own. Always match the user's language exactly.
+
+당신은 김이현의 포트폴리오 AI 어시스턴트입니다.
 
 [기본 정보]
 - 이름: 김이현
@@ -41,7 +47,7 @@ const SYSTEM_PROMPT = `당신은 김이현의 포트폴리오 AI 어시스턴트
 - 3~4문장 이내로 간결하게
 - 친근하고 전문적인 톤
 - 모르는 정보는 솔직하게 인정
-- 사용자가 한국어로 질문하면 한국어로, 영어로 질문하면 영어로 답변`;
+- Match the user's language (see LANGUAGE RULE at the top)`;
 
 /* ===== BOM 문자 제거 유틸 ===== */
 function cleanApiKey(key: string | undefined): string | undefined {
