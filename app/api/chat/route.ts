@@ -62,20 +62,36 @@ function cleanApiKey(key: string | undefined): string | undefined {
   return key?.replace(/^﻿/, '').trim();
 }
 
+/* ===== 입력값 제한 상수 ===== */
+const MAX_MESSAGES = 20;       // 대화 최대 턴 수
+const MAX_MSG_LENGTH = 500;    // 메시지 1개 최대 글자 수
+
 /* ===== API 라우트 핸들러 ===== */
 export async function POST(request: NextRequest) {
   const apiKey = cleanApiKey(process.env.ANTHROPIC_API_KEY);
 
-  // API 키 확인
+  // API 키 확인 (내부 경로 노출 제거)
   if (!apiKey) {
-    return NextResponse.json(
-      { error: 'ANTHROPIC_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인해주세요.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: '서버 설정 오류입니다.' }, { status: 500 });
   }
 
   try {
-    const { messages } = await request.json();
+    const body = await request.json();
+    const messages: Array<{ role: string; content: string }> = body.messages;
+
+    // ── 입력값 검증 ──────────────────────────────────────────
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 });
+    }
+    if (messages.length > MAX_MESSAGES) {
+      return NextResponse.json({ error: '대화가 너무 깁니다.' }, { status: 400 });
+    }
+    for (const msg of messages) {
+      if (typeof msg.content !== 'string' || msg.content.length > MAX_MSG_LENGTH) {
+        return NextResponse.json({ error: '메시지가 너무 깁니다.' }, { status: 400 });
+      }
+    }
+    // ──────────────────────────────────────────────────────────
 
     const client = new Anthropic({ apiKey });
 
@@ -95,9 +111,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error('[/api/chat] 오류:', error);
-    return NextResponse.json(
-      { error: '서버 오류가 발생했습니다.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
