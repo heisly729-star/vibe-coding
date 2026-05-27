@@ -77,20 +77,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const messages: Array<{ role: string; content: string }> = body.messages;
+    const rawMessages: unknown[] = body.messages;
 
     // ── 입력값 검증 ──────────────────────────────────────────
-    if (!Array.isArray(messages) || messages.length === 0) {
+    if (!Array.isArray(rawMessages) || rawMessages.length === 0) {
       return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 });
     }
-    if (messages.length > MAX_MESSAGES) {
+    if (rawMessages.length > MAX_MESSAGES) {
       return NextResponse.json({ error: '대화가 너무 깁니다.' }, { status: 400 });
     }
-    for (const msg of messages) {
-      if (typeof msg.content !== 'string' || msg.content.length > MAX_MSG_LENGTH) {
-        return NextResponse.json({ error: '메시지가 너무 깁니다.' }, { status: 400 });
+    for (const msg of rawMessages) {
+      if (
+        typeof msg !== 'object' || msg === null ||
+        !('role' in msg) || !('content' in msg) ||
+        !['user', 'assistant'].includes((msg as { role: string }).role) ||
+        typeof (msg as { content: unknown }).content !== 'string' ||
+        (msg as { content: string }).content.length > MAX_MSG_LENGTH
+      ) {
+        return NextResponse.json({ error: '잘못된 메시지 형식입니다.' }, { status: 400 });
       }
     }
+    // 검증 통과 후 올바른 타입으로 캐스팅
+    const messages = rawMessages as Array<{ role: 'user' | 'assistant'; content: string }>;
     // ──────────────────────────────────────────────────────────
 
     const client = new Anthropic({ apiKey });
