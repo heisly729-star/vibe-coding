@@ -30,10 +30,18 @@ ${company}에 지원하는 이유와 포지션 적합성을 자연스럽게 담�
 3~4문단, 각 문단 3~4문장으로 작성해주세요. 한국어로 작성.`;
 }
 
+/* ===== BOM 문자 제거 유틸 ===== */
+function cleanApiKey(key: string | undefined): string | undefined {
+  // PowerShell 파이프 등으로 BOM(﻿)이 앞에 붙는 경우 제거
+  return key?.replace(/^﻿/, '').trim();
+}
+
 /* ===== API 라우트 핸들러 (SSE 스트리밍) ===== */
 export async function POST(request: NextRequest) {
+  const apiKey = cleanApiKey(process.env.ANTHROPIC_API_KEY);
+
   // API 키 확인
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!apiKey) {
     return new Response(
       'data: {"error":"ANTHROPIC_API_KEY가 설정되지 않았습니다."}\n\ndata: [DONE]\n\n',
       {
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
     const { company, position, tone } = await request.json();
     const prompt = buildPrompt(company, position, tone);
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = new Anthropic({ apiKey });
     const encoder = new TextEncoder();
 
     // ReadableStream으로 SSE 스트리밍

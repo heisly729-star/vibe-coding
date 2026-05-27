@@ -43,10 +43,18 @@ const SYSTEM_PROMPT = `당신은 김이현의 포트폴리오 AI 어시스턴트
 - 모르는 정보는 솔직하게 인정
 - 한국어로 답변`;
 
+/* ===== BOM 문자 제거 유틸 ===== */
+function cleanApiKey(key: string | undefined): string | undefined {
+  // PowerShell 파이프 등으로 BOM(﻿)이 앞에 붙는 경우 제거
+  return key?.replace(/^﻿/, '').trim();
+}
+
 /* ===== API 라우트 핸들러 ===== */
 export async function POST(request: NextRequest) {
+  const apiKey = cleanApiKey(process.env.ANTHROPIC_API_KEY);
+
   // API 키 확인
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!apiKey) {
     return NextResponse.json(
       { error: 'ANTHROPIC_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인해주세요.' },
       { status: 500 }
@@ -56,7 +64,7 @@ export async function POST(request: NextRequest) {
   try {
     const { messages } = await request.json();
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5',
