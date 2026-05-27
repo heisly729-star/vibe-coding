@@ -41,7 +41,7 @@ const SYSTEM_PROMPT = `당신은 김이현의 포트폴리오 AI 어시스턴트
 - 3~4문장 이내로 간결하게
 - 친근하고 전문적인 톤
 - 모르는 정보는 솔직하게 인정
-- 한국어로 답변`;
+- 사용자가 한국어로 질문하면 한국어로, 영어로 질문하면 영어로 답변`;
 
 /* ===== BOM 문자 제거 유틸 ===== */
 function cleanApiKey(key: string | undefined): string | undefined {
