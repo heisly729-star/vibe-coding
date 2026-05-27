@@ -299,6 +299,23 @@ body {
   display: flex; justify-content: space-between; align-items: center;
 }
 .cover-output-label { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; letter-spacing: 0.1em; color: var(--muted2); }
+/* 헤더 오른쪽 액션 영역 (KO/EN 토글 + 복사) */
+.cover-header-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+/* KO / EN 언어 토글 */
+.cover-lang-toggle {
+  display: flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
+}
+.cover-lang-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.08em; padding: 0.3rem 0.6rem;
+  background: transparent; border: none; color: var(--muted);
+  cursor: pointer; transition: all 0.18s;
+}
+.cover-lang-btn.active { background: var(--blue); color: #fff; }
+.cover-lang-btn:not(.active):hover { background: var(--surface); color: var(--ink); }
+.cover-lang-btn:disabled { opacity: 0.5; cursor: default; }
+
 .cover-copy-btn {
   font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; letter-spacing: 0.08em;
   padding: 0.3rem 0.75rem; border: 1px solid var(--line); background: transparent;

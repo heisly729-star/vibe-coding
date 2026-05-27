@@ -41,15 +41,19 @@ export default function PortfolioPage() {
   const [coverLabel, setCoverLabel]   = useState('COVER LETTER OUTPUT');
   const [coverStatus, setCoverStatus] = useState<CoverStatus>('idle');
   const [coverCopied, setCoverCopied] = useState(false);
+  const [coverTranslation, setCoverTranslation]         = useState('');
+  const [coverTranslateStatus, setCoverTranslateStatus] = useState<CoverStatus>('idle');
+  const [coverLang, setCoverLang]     = useState<'ko' | 'en'>('ko');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput]     = useState('');
   const [isAiTyping, setIsAiTyping]   = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
 
-  const typingTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const coverTextRef    = useRef('');
-  const convRef         = useRef<ChatMessage[]>([]);
+  const typingTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatContainerRef     = useRef<HTMLDivElement>(null);
+  const coverTextRef         = useRef('');
+  const coverTranslationRef  = useRef('');
+  const convRef              = useRef<ChatMessage[]>([]);
 
   /* ===== 탭 전환 ===== */
   const switchTab = useCallback((id: string) => {
@@ -102,7 +106,10 @@ export default function PortfolioPage() {
   /* ===== 커버레터 생성 ===== */
   const generateCoverLetter = useCallback(async () => {
     if (!coverCompany.trim() || !coverPosition.trim()) return;
+    // 재생성 시 번역 상태 초기화
     setCoverStatus('streaming'); setCoverText(''); coverTextRef.current = '';
+    setCoverTranslation(''); coverTranslationRef.current = '';
+    setCoverTranslateStatus('idle'); setCoverLang('ko');
     setCoverLabel(`${coverCompany.toUpperCase()} · ${coverPosition.toUpperCase()}`);
     try {
       const res = await fetch('/api/cover-letter', {
@@ -125,10 +132,40 @@ export default function PortfolioPage() {
   }, [coverCompany, coverPosition, coverTone]);
 
   const copyCoverLetter = useCallback(() => {
-    if (!coverTextRef.current) return;
-    navigator.clipboard.writeText(coverTextRef.current);
+    // 현재 보이는 언어 텍스트를 복사
+    const textToCopy = coverLang === 'en' ? coverTranslationRef.current : coverTextRef.current;
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
     setCoverCopied(true); setTimeout(() => setCoverCopied(false), 2000);
-  }, []);
+  }, [coverLang]);
+
+  /* ===== 커버레터 영문 번역 ===== */
+  const translateCoverLetter = useCallback(async () => {
+    if (!coverTextRef.current) return;
+    // 이미 번역 완료된 경우엔 탭만 전환
+    if (coverTranslateStatus === 'done') { setCoverLang('en'); return; }
+    setCoverLang('en');
+    setCoverTranslateStatus('streaming');
+    setCoverTranslation(''); coverTranslationRef.current = '';
+    try {
+      const res = await fetch('/api/translate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: coverTextRef.current }),
+      });
+      if (!res.ok || !res.body) throw new Error('오류');
+      const reader = res.body.getReader(); const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read(); if (done) break;
+        const lines = decoder.decode(value, { stream: true }).split('\n');
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim(); if (payload === '[DONE]') break;
+          try { const d = JSON.parse(payload); if (d.text) { coverTranslationRef.current += d.text; setCoverTranslation(coverTranslationRef.current); } } catch { /**/ }
+        }
+      }
+      setCoverTranslateStatus('done');
+    } catch { setCoverTranslateStatus('error'); }
+  }, [coverTranslateStatus]);
 
   /* ===== AI 채팅 ===== */
   const sendMessage = useCallback(async (text: string) => {
@@ -342,14 +379,54 @@ export default function PortfolioPage() {
                   <div className="cover-output-wrap">
                     <div className="cover-output-header">
                       <span className="cover-output-label">{coverLabel}</span>
-                      <button className="cover-copy-btn" onClick={copyCoverLetter} style={coverCopied ? { color: 'var(--blue)', borderColor: 'var(--blue)' } : {}}>
-                        {coverCopied ? '복사됨 ✓' : '복사'}
-                      </button>
+                      <div className="cover-header-actions">
+                        {/* KO / EN 토글: 커버레터 생성 완료 후에만 표시 */}
+                        {coverStatus === 'done' && (
+                          <div className="cover-lang-toggle">
+                            <button
+                              className={`cover-lang-btn${coverLang === 'ko' ? ' active' : ''}`}
+                              onClick={() => setCoverLang('ko')}
+                            >KO</button>
+                            <button
+                              className={`cover-lang-btn${coverLang === 'en' ? ' active' : ''}`}
+                              onClick={() => {
+                                if (coverTranslateStatus === 'idle') translateCoverLetter();
+                                else setCoverLang('en');
+                              }}
+                              disabled={coverTranslateStatus === 'streaming'}
+                            >
+                              {coverTranslateStatus === 'streaming' ? '...' : 'EN'}
+                            </button>
+                          </div>
+                        )}
+                        <button className="cover-copy-btn" onClick={copyCoverLetter} style={coverCopied ? { color: 'var(--blue)', borderColor: 'var(--blue)' } : {}}>
+                          {coverCopied ? '복사됨 ✓' : '복사'}
+                        </button>
+                      </div>
                     </div>
                     <div className="cover-output-body">
-                      {coverStatus === 'idle' && <div className="cover-placeholder"><span>회사명과 포지션을 입력하고<br />생성 버튼을 눌러주세요</span></div>}
-                      {(coverStatus === 'streaming' || coverStatus === 'done') && <>{coverText}{coverStatus === 'streaming' && <span className="blink-cur" />}</>}
-                      {coverStatus === 'error' && <p style={{ color: 'var(--muted)', fontSize: '0.83rem' }}>일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>}
+                      {/* idle 상태 */}
+                      {coverStatus === 'idle' && (
+                        <div className="cover-placeholder"><span>회사명과 포지션을 입력하고<br />생성 버튼을 눌러주세요</span></div>
+                      )}
+                      {/* 한국어 출력 */}
+                      {coverLang === 'ko' && (coverStatus === 'streaming' || coverStatus === 'done') && (
+                        <>{coverText}{coverStatus === 'streaming' && <span className="blink-cur" />}</>
+                      )}
+                      {/* 영어 번역 출력 */}
+                      {coverLang === 'en' && (
+                        <>
+                          {(coverTranslateStatus === 'streaming' || coverTranslateStatus === 'done') && (
+                            <>{coverTranslation}{coverTranslateStatus === 'streaming' && <span className="blink-cur" />}</>
+                          )}
+                          {coverTranslateStatus === 'error' && (
+                            <p style={{ color: 'var(--muted)', fontSize: '0.83rem' }}>번역 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>
+                          )}
+                        </>
+                      )}
+                      {coverStatus === 'error' && (
+                        <p style={{ color: 'var(--muted)', fontSize: '0.83rem' }}>일시적 오류가 발생했습니다. 잠시 후 다시 시도해주세요.</p>
+                      )}
                     </div>
                   </div>
                 </div>
